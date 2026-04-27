@@ -3,7 +3,7 @@ from flask import Flask, render_template_string, request, jsonify
 app = Flask(__name__)
 
 # База данных сообщений (в памяти сервера)
-db = {"777": [{"u": "Система", "t": "Добро пожаловать в LiteGram!"}]}
+db = {"777": [{"u": "Система", "t": "Добро пожаловать в LiteGram!"}]}j
 
 HTML = """
 <!DOCTYPE html>
