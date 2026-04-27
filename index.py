@@ -1,40 +1,42 @@
 from flask import Flask, render_template_string, request
-import os
 
 app = Flask(__name__)
 messages = []
 
-# Дизайн как в ТГ
 HTML_UI = """
 <!DOCTYPE html>
-<html lang="ru">
+<html>
 <head>
+    <title>LiteGram Web</title>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>LiteGram Online</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <style>
-        body { background-color: #1d1121; color: white; font-family: sans-serif; margin: 0; display: flex; flex-direction: column; height: 100vh; }
-        .header { background-color: #26182c; padding: 15px; text-align: center; color: #b279e6; font-weight: bold; border-bottom: 1px solid #3a2a41; }
-        .chat { flex: 1; overflow-y: auto; padding: 15px; }
-        .msg { background: #3a2a41; padding: 10px; border-radius: 12px; margin-bottom: 8px; max-width: 80%; width: fit-content; }
-        .footer { background: #26182c; padding: 10px; display: flex; gap: 10px; }
-        input { flex: 1; padding: 12px; border-radius: 20px; border: none; background: #1d1121; color: white; outline: none; }
-        button { background: #b279e6; color: white; border: none; padding: 10px 20px; border-radius: 20px; cursor: pointer; }
+        body { background-color: #1d1121; color: white; font-family: sans-serif; margin: 0; display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
+        .header { background-color: #26182c; padding: 20px; text-align: center; font-weight: bold; font-size: 22px; color: #b279e6; border-bottom: 2px solid #3a2a41; }
+        .chat-box { flex: 1; overflow-y: auto; padding: 15px; display: flex; flex-direction: column; }
+        .message { background-color: #3a2a41; padding: 12px; border-radius: 15px; margin-bottom: 10px; max-width: 85%; align-self: flex-start; line-height: 1.4; }
+        .footer { background-color: #26182c; padding: 15px; display: flex; gap: 10px; border-top: 2px solid #3a2a41; }
+        input { background: #1d1121; border: 1px solid #4a3a51; color: white; padding: 12px; border-radius: 25px; outline: none; font-size: 16px; }
+        .btn { background-color: #b279e6; border: none; color: white; padding: 12px 25px; border-radius: 25px; font-weight: bold; cursor: pointer; }
     </style>
 </head>
 <body>
     <div class="header">LiteGram Web</div>
-    <div class="chat" id="chat">
-        {% for m in msgs %}
-            <div class="msg"><b>{{ m.user }}:</b> {{ m.text }}</div>
+    <div class="chat-box" id="chat">
+        {% for msg in msgs %}
+            <div class="message"><b>{{ msg.user }}:</b>
+{{ msg.text }}</div>
         {% endfor %}
     </div>
     <form class="footer" method="POST">
-        <input type="text" name="user" placeholder="Имя" required style="width: 60px; flex: none;">
-        <input type="text" name="text" placeholder="Сообщение..." required>
-        <button type="submit">➤</button>
+        <input type="text" name="user" placeholder="Имя" required style="width: 70px;">
+        <input type="text" name="text" placeholder="Сообщение..." required style="flex: 1;">
+        <button type="submit" class="btn">➤</button>
     </form>
-    <script>document.getElementById('chat').scrollTop = 99999;</script>
+    <script>
+        var chat = document.getElementById('chat');
+        chat.scrollTop = chat.scrollHeight;
+    </script>
 </body>
 </html>
 """
@@ -42,11 +44,12 @@ HTML_UI = """
 @app.route("/", methods=["GET", "POST"])
 def index():
     if request.method == "POST":
-        user, text = request.form.get("user"), request.form.get("text")
-        if user and text: messages.append({"user": user, "text": text})
+        user = request.form.get("user")
+        text = request.form.get("text")
+        if user and text:
+            messages.append({"user": user, "text": text})
+            if len(messages) > 50: messages.pop(0) # Храним только последние 50
     return render_template_string(HTML_UI, msgs=messages)
 
-if __name__ == "__main__":
-    # Порт для хостинга берется из настроек системы
-    port = int(os.environ.get("PORT", 5000))
-    app.run(host="0.0.0.0", port=port)
+# Важно для Vercel
+app.debug = False
