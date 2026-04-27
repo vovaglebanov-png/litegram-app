@@ -1,179 +1,116 @@
 from flask import Flask, render_template_string, request, jsonify
 
 app = Flask(__name__)
-# Начальные чаты
-chats_data = {"Общий чат": [], "Поддержка": []}
+# База данных сообщений
+db = {}
 
 HTML = """
 <!DOCTYPE html>
-<html lang="ru">
+<html>
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-    <title>LiteGram Ultra</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LiteGram Online</title>
     <style>
-        :root { --bg: #0f0a15; --panel: #1e142a; --accent: #b279e6; --my-msg: linear-gradient(135deg, #8e2de2, #4a00e0); }
-        * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
-        body, html { background: var(--bg); color: white; font-family: sans-serif; margin: 0; height: 100%; overflow: hidden; }
-        #app { display: flex; flex-direction: column; height: 100vh; }
-
-        .header { background: var(--panel); padding: 15px; border-bottom: 1px solid rgba(178,121,230,0.2); display: flex; align-items: center; justify-content: space-between; }
+        body { background: #0f0a15; color: white; font-family: sans-serif; margin: 0; display: flex; flex-direction: column; height: 100vh; }
+        .header { background: #1e142a; padding: 15px; text-align: center; border-bottom: 1px solid #b279e6; }
         
-        .chat-list { flex: 1; overflow-y: auto; }
-        .list-item { padding: 15px; border-bottom: 1px solid #26182c; display: flex; align-items: center; gap: 15px; }
-        .avatar { width: 45px; height: 45px; background: var(--accent); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: bold; }
+        /* Экран входа */
+        #login-screen { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 15px; }
+        input { background: #1e142a; border: 1px solid #b279e6; color: white; padding: 12px; border-radius: 10px; width: 250px; outline: none; }
+        button { background: #b279e6; border: none; color: white; padding: 12px 25px; border-radius: 10px; font-weight: bold; cursor: pointer; }
 
-        #chat-content { flex: 1; overflow-y: auto; padding: 15px; display: flex; flex-direction: column; gap: 10px; }
-        .m { padding: 10px 15px; border-radius: 15px; max-width: 85%; align-self: flex-start; background: #26182c; word-wrap: break-word; }
-        .m.me { align-self: flex-end; background: var(--my-msg); }
-        .u { font-size: 11px; color: var(--accent); font-weight: bold; margin-bottom: 3px; display: block; }
-
-        .footer { background: var(--panel); padding: 10px; display: flex; gap: 10px; border-top: 1px solid #3a2a41; }
-        input { flex: 1; background: #0f0a15; border: 1px solid #3a2a41; color: white; padding: 12px; border-radius: 20px; outline: none; font-size: 16px; }
+        /* Экран чата */
+        #chat-screen { flex: 1; display: none; flex-direction: column; overflow: hidden; }
+        #messages { flex: 1; overflow-y: auto; padding: 15px; display: flex; flex-direction: column; gap: 10px; }
+        .msg { background: #1e142a; padding: 10px 15px; border-radius: 15px; max-width: 80%; align-self: flex-start; border: 1px solid #3a2a41; }
+        .me { align-self: flex-end; background: #b279e6; border: none; }
         
-        /* КНОПКА ПЛЮС */
-        .fab { position: fixed; bottom: 30px; right: 20px; width: 60px; height: 60px; background: var(--accent); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 35px; box-shadow: 0 4px 20px rgba(0,0,0,0.6); z-index: 10; cursor: pointer; }
-
-        /* МОДАЛЬНОЕ ОКНО */
-        #modal { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); display: none; align-items: center; justify-content: center; z-index: 100; }
-        .modal-content { background: var(--panel); padding: 25px; border-radius: 20px; width: 85%; text-align: center; border: 1px solid var(--accent); }
-        
-        .hidden { display: none !important; }
+        .footer { background: #1e142a; padding: 10px; display: flex; gap: 10px; }
+        .footer input { flex: 1; }
     </style>
 </head>
 <body>
-    <div id="app">
-        <!-- ГЛАВНЫЙ ЭКРАН -->
-        <div id="main-screen" style="display: flex; flex-direction: column; height: 100%;">
-            <div class="header"><b style="color:var(--accent); font-size: 20px;">LiteGram</b></div>
-            <div class="chat-list" id="chat-list-ui"></div>
-            <div class="fab" onclick="showModal()">+</div>
-        </div>
+    <div class="header"><b style="color:#b279e6">LITEGRAM</b></div>
 
-        <!-- ОКНО ЧАТА -->
-        <div id="chat-screen" class="hidden" style="flex-direction: column; height: 100%;">
-            <div class="header">
-                <span onclick="goBack()" style="font-size: 18px; color: var(--accent);">← Назад</span>
-                <b id="chat-title"></b>
-                <span></span>
-            </div>
-            <div id="chat-content"></div>
-            <div class="footer">
-                <input type="text" id="msg-input" placeholder="Сообщение..." autocomplete="off">
-                <button onclick="send()" style="background:none; border:none; color:var(--accent); font-size:28px;">➤</button>
-            </div>
-        </div>
+    <!-- ЭКРАН ВХОДА -->
+    <div id="login-screen">
+        <h3>Вход в комнату</h3>
+        <input type="text" id="username" placeholder="Ваше имя">
+        <input type="text" id="roomid" placeholder="Номер комнаты (напр. 777)">
+        <button onclick="enterChat()">Войти</button>
     </div>
 
-    <!-- ОКНО СОЗДАНИЯ ЧАТА -->
-    <div id="modal" onclick="hideModal(event)">
-        <div class="modal-content" onclick="event.stopPropagation()"
-
-
->
-            <h3>Новый чат</h3>
-            <input type="text" id="new-chat-name" placeholder="Имя друга..." style="width: 100%; margin-bottom: 15px;">
-            <button onclick="confirmNewChat()" style="background:var(--accent); color:white; border:none; padding:12px 30px; border-radius:20px; width: 100%; font-weight:bold;">Создать</button>
+    <!-- ЭКРАН ЧАТА -->
+    <div id="chat-screen">
+        <div id="messages"></div>
+        <div class="footer">
+            <input type="text" id="msg-input" placeholder="Сообщение..." onkeypress="if(event.key=='Enter')send()">
+            <button onclick="send()">➤</button>
         </div>
     </div>
 
     <script>
-        let currentChat = "";
-        let myName = localStorage.getItem('my_name') || "";
+        let currentUser = "";
+        let currentRoom = "";
 
-        if(!myName) {
-            setTimeout(() => {
-                const name = prompt("Введите ваше имя:");
-                if(name) { myName = name; localStorage.setItem('my_name', name); }
-                else { myName = "Гость"; }
-            }, 500);
-        }
-
-        async function loadChatList() {
-            const r = await fetch('/get_all_chats');
-            const chats = await r.json();
-            document.getElementById('chat-list-ui').innerHTML = chats.map(name => `
-                <div class="list-item" onclick="openChat('${name}')">
-                    <div class="avatar">${name[0].toUpperCase()}</div>
-                    <b>${name}</b>
-                </div>
-            `).join('');
-        }
-
-        function showModal() { document.getElementById('modal').style.display = 'flex'; }
-        function hideModal(e) { document.getElementById('modal').style.display = 'none'; }
-
-        function confirmNewChat() {
-            const name = document.getElementById('new-chat-name').value.trim();
-            if(name) {
-                hideModal();
-                openChat(name);
-                document.getElementById('new-chat-name').value = "";
+        function enterChat() {
+            currentUser = document.getElementById('username').value;
+            currentRoom = document.getElementById('roomid').value;
+            if (currentUser && currentRoom) {
+                document.getElementById('login-screen').style.display = 'none';
+                document.getElementById('chat-screen').style.display = 'flex';
+                setInterval(load, 2000);
+                load();
+            } else {
+                alert("Заполните все поля!");
             }
         }
 
-        function openChat(name) {
-            currentChat = name;
-            document.getElementById('chat-title').innerText = name;
-            document.getElementById('main-screen').style.display = 'none';
-            document.getElementById('chat-screen').style.display = 'flex';
-            loadMsgs();
-        }
-
-        function goBack() {
-            document.getElementById('main-screen').style.display = 'flex';
-            document.getElementById('chat-screen').style.display = 'none';
-            currentChat = "";
-            loadChatList();
-        }
-
-        async function loadMsgs() {
-            if(!currentChat) return;
-            const r = await fetch('/get_msgs?chat=' + encodeURIComponent(currentChat));
-            const d = await r.json();
-            const cont = document.getElementById('chat-content');
-            cont.innerHTML = d.map(m => {
-                const isMe = m.u === myName ? 'me' : '';
-                return `<div class="m ${isMe}"><span class="u">${m.u}</span>${m.t}</div>`;
-            }).join('');
-            cont.scrollTop = cont.scrollHeight;
+        async function load() {
+            const r = await fetch('/get?r=' + encodeURIComponent(currentRoom));
+            const data = await r.json();
+            const div = document.getElementById('messages');
+            div.innerHTML = data.map(m => `
+                <div class="msg ${m.u === currentUser ? 'me' : ''}">
+                    <small style="font-size:10px; opacity:0.7">${m.u}</small>
+${m.t}
+                </div>
+            `).join('');
+            div.scrollTop = div.scrollHeight;
         }
 
         async function send() {
-            const input = document.getElementById('msg-input');
-            if(!input.value || !currentChat) return;
-            await fetch('/send_msg', {
+            const inp = document.getElementById('msg-input');
+            const text = inp.value;
+            if (!text) return;
+            inp.value = "";
+            await fetch('/send', {
                 method: 'POST',
                 headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({chat: currentChat, u: myName, t: input.value})
+                body: JSON.stringify({ r: currentRoom, u: currentUser, t: text })
             });
-            input.value = "";
-            loadMsgs();
+            load();
         }
-
-        setInterval(() => { currentChat ? loadMsgs() : loadChatList(); }, 2000);
-        loadChatList();
     </script>
 </body>
 </html>
 """
 
 @app.route('/')
-def index(): return render_template_string(HTML)
+def home(): return render_template_string(HTML)
 
-@app.route('/get_all_chats')
-def get_all_chats(): return jsonify(list(chats_data.keys()))
+@app.route('/get')
+def get_messages():
 
-@app.route('/get_msgs')
-def get_msgs():
-    chat = request.args.get('chat')
-    if chat not in chats_data: chats_data[chat] = []
-    return jsonify(chats_data[chat])
 
-@app.route('/send_msg', methods=['POST'])
-def send_msg():
-    data = request.json
-    chat = data.get('chat')
-    if chat not in chats_data: chats_data[chat] = []
-    chats_data[chat].append({"u": data['u'], "t": data['t']})
-    return jsonify(ok=True)
+r = request.args.get('r')
+    return jsonify(db.get(r, []))
+
+@app.route('/send', methods=['POST'])
+def send():
+    d = request.json
+    r = d.get('r')
+    if r not in db: db[r] = []
+    db[r].append({"u": d['u'], "t": d['t']})
+    return jsonify({"ok": True})
